@@ -4,6 +4,12 @@ export enum TransactionType {
   EXPENSE = 'EXPENSE'
 }
 
+export enum CustomerType {
+  WALK_IN = 'Walk-in',
+  BOOKING = 'Booking',
+  CHECK_IN = 'Check-in'
+}
+
 export enum Category {
   // Income Categories
   ROOM_REVENUE = 'ค่าห้องพัก',
@@ -35,6 +41,8 @@ export interface GuestData {
   issueDate: string;
   expiryDate: string;
   religion?: string;
+  customerType?: CustomerType;
+  phone?: string;
 }
 
 export interface Transaction {
@@ -48,6 +56,7 @@ export interface Transaction {
   isReconciled: boolean;
   pmsReferenceId?: string;
   guestData?: GuestData;
+  customerType?: CustomerType;
 }
 
 export interface Booking {
@@ -57,8 +66,9 @@ export interface Booking {
   checkIn: string;
   checkOut: string;
   totalAmount: number;
-  status: 'confirmed' | 'checked_out' | 'pending';
+  status: 'confirmed' | 'checked_out' | 'pending' | 'checked_in' | 'locked';
   guestDetails?: GuestData;
+  lockedUntil?: string; // ISO string for timestamp
 }
 
 export interface OCRResult {

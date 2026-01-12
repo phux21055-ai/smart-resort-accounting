@@ -70,14 +70,15 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose }) => 
             />
             {/* Guide Frame */}
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="w-[85%] h-[70%] border-2 border-dashed border-indigo-400 rounded-3xl flex items-center justify-center relative">
+              <div className="w-[85%] h-[80%] border-2 border-dashed border-indigo-400 rounded-3xl flex flex-col items-center justify-center relative">
                 <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-indigo-500 -mt-1 -ml-1 rounded-tl-xl"></div>
                 <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-indigo-500 -mt-1 -mr-1 rounded-tr-xl"></div>
                 <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-indigo-500 -mb-1 -ml-1 rounded-bl-xl"></div>
                 <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-indigo-500 -mb-1 -mr-1 rounded-br-xl"></div>
                 
-                <div className="bg-indigo-500/10 backdrop-blur-[2px] px-4 py-2 rounded-full border border-indigo-500/30">
-                  <p className="text-[10px] text-indigo-200 font-black uppercase tracking-[0.2em]">Align ID Card Here</p>
+                <div className="bg-indigo-500/20 backdrop-blur-[4px] px-6 py-3 rounded-2xl border border-indigo-500/40 text-center">
+                  <p className="text-xs text-white font-black uppercase tracking-[0.2em] mb-1">วางเอกสาร/สลิปในกรอบ</p>
+                  <p className="text-[9px] text-indigo-200 font-bold uppercase">Ensure text is clear and readable</p>
                 </div>
               </div>
             </div>

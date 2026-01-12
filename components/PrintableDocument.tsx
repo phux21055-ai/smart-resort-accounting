@@ -8,16 +8,15 @@ interface PrintableDocumentProps {
   amount: number;
   roomNumber: string;
   description: string;
+  resortInfo: {
+    resortName: string;
+    resortAddress: string;
+    taxId: string;
+    phone: string;
+  };
 }
 
-const PrintableDocument: React.FC<PrintableDocumentProps> = ({ guest, type, amount, roomNumber, description }) => {
-  const RESORT_INFO = {
-    name: "Smart Resort & Spa",
-    address: "123 หมู่ 1 ต.โป่ง อ.บางละมุง จ.ชลบุรี 20150",
-    taxId: "0-2055-5700x-xx-x",
-    phone: "081-234-5678"
-  };
-
+const PrintableDocument: React.FC<PrintableDocumentProps> = ({ guest, type, amount, roomNumber, description, resortInfo }) => {
   const getTitle = () => {
     switch(type) {
       case 'RR3': return 'ใบแจ้งการรับคนเข้าพัก (ร.ร. 3)';
@@ -45,10 +44,10 @@ const PrintableDocument: React.FC<PrintableDocumentProps> = ({ guest, type, amou
       {/* Header */}
       <div className="flex justify-between items-start border-b-2 border-black pb-8 mb-10">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold uppercase text-slate-900">{RESORT_INFO.name}</h1>
-          <p className="text-xs text-slate-600">{RESORT_INFO.address}</p>
-          <p className="text-xs text-slate-600">เลขประจำตัวผู้เสียภาษี: {RESORT_INFO.taxId}</p>
-          <p className="text-xs text-slate-600">โทร: {RESORT_INFO.phone}</p>
+          <h1 className="text-2xl font-bold uppercase text-slate-900">{resortInfo.resortName}</h1>
+          <p className="text-xs text-slate-600 whitespace-pre-line">{resortInfo.resortAddress}</p>
+          <p className="text-xs text-slate-600">เลขประจำตัวผู้เสียภาษี: {resortInfo.taxId}</p>
+          <p className="text-xs text-slate-600">โทร: {resortInfo.phone}</p>
         </div>
         <div className="text-right">
           <h2 className="text-xl font-bold mb-2 text-indigo-900">{getTitle()}</h2>
@@ -64,12 +63,17 @@ const PrintableDocument: React.FC<PrintableDocumentProps> = ({ guest, type, amou
           <p className="font-bold text-lg">{guest.title} {guest.firstNameTH} {guest.lastNameTH}</p>
           <p className="text-sm text-slate-500">({guest.firstNameEN} {guest.lastNameEN})</p>
           <p className="text-sm mt-2 leading-snug">{guest.address}</p>
+          {guest.customerType && (
+            <div className="mt-3 inline-block bg-indigo-600 text-white px-3 py-1 rounded text-[9pt] font-bold">
+              ประเภท: {guest.customerType}
+            </div>
+          )}
         </div>
         <div>
           <h4 className="text-[10pt] font-bold text-gray-500 uppercase mb-2">รายละเอียดการเข้าพัก</h4>
           <p><span className="font-bold">เลขห้อง:</span> {roomNumber || '-'}</p>
           <p><span className="font-bold">ID Number:</span> {guest.idNumber}</p>
-          <p><span className="font-bold">วันเกิด:</span> {new Date(guest.dob).toLocaleDateString('th-TH')}</p>
+          <p><span className="font-bold">วันเกิด:</span> {guest.dob ? new Date(guest.dob).toLocaleDateString('th-TH') : '-'}</p>
           {type === 'RR3' && <p className="mt-2 text-sm italic text-indigo-600">วัตถุประสงค์: เข้าพักแรมชั่วคราว</p>}
         </div>
       </div>
@@ -137,7 +141,7 @@ const PrintableDocument: React.FC<PrintableDocumentProps> = ({ guest, type, amou
       </div>
 
       <div className="mt-24 text-[8pt] text-gray-400 text-center uppercase tracking-widest border-t pt-4">
-        This is an electronically generated document. Thank you for choosing {RESORT_INFO.name}.
+        This is an electronically generated document. Thank you for choosing {resortInfo.resortName}.
       </div>
     </div>
   );

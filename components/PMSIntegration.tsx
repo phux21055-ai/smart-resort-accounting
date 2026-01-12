@@ -1,19 +1,36 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Booking, Transaction, TransactionType, Category } from '../types';
 
 interface PMSIntegrationProps {
+  bookings: Booking[];
   transactions: Transaction[];
   onAddTransaction: (t: Omit<Transaction, 'id'>) => void;
 }
 
-const MOCK_BOOKINGS: Booking[] = [
-  { id: 'BK001', guestName: 'John Doe', roomNumber: '101', checkIn: '2024-05-20', checkOut: '2024-05-22', totalAmount: 4800, status: 'confirmed' },
-  { id: 'BK002', guestName: 'Lisa Black', roomNumber: '205', checkIn: '2024-05-21', checkOut: '2024-05-23', totalAmount: 5200, status: 'confirmed' },
-  { id: 'BK003', guestName: 'สมชาย รักดี', roomNumber: '103', checkIn: '2024-05-21', checkOut: '2024-05-21', totalAmount: 1500, status: 'pending' },
-];
+const CountdownTimer: React.FC<{ expiry: string }> = ({ expiry }) => {
+  const [timeLeft, setTimeLeft] = useState('');
 
-const PMSIntegration: React.FC<PMSIntegrationProps> = ({ transactions, onAddTransaction }) => {
+  useEffect(() => {
+    const update = () => {
+      const diff = new Date(expiry).getTime() - new Date().getTime();
+      if (diff <= 0) {
+        setTimeLeft('Expired');
+        return;
+      }
+      const mins = Math.floor(diff / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${mins}:${secs.toString().padStart(2, '0')}`);
+    };
+    const interval = setInterval(update, 1000);
+    update();
+    return () => clearInterval(interval);
+  }, [expiry]);
+
+  return <span className="font-black text-amber-600">{timeLeft}</span>;
+};
+
+const PMSIntegration: React.FC<PMSIntegrationProps> = ({ bookings, transactions, onAddTransaction }) => {
   const isPaid = (bookingId: string) => {
     return transactions.some(tx => tx.description.includes(bookingId) && tx.type === TransactionType.INCOME);
   };
@@ -29,68 +46,107 @@ const PMSIntegration: React.FC<PMSIntegrationProps> = ({ transactions, onAddTran
     });
   };
 
+  const getStatusBadge = (booking: Booking) => {
+    switch (booking.status) {
+      case 'locked':
+        return (
+          <div className="flex items-center gap-2">
+            <span className="bg-amber-100 text-amber-600 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight flex items-center gap-1">
+              <span className="animate-pulse">⌛</span> Locked
+            </span>
+            <span className="text-[10px] text-amber-500 font-bold">
+              Expires in <CountdownTimer expiry={booking.lockedUntil!} />
+            </span>
+          </div>
+        );
+      case 'checked_in':
+        return <span className="bg-emerald-100 text-emerald-600 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight">Checked In</span>;
+      case 'confirmed':
+        return <span className="bg-blue-100 text-blue-600 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight">Confirmed</span>;
+      case 'pending':
+        return <span className="bg-slate-100 text-slate-400 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight">Pending</span>;
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="bg-blue-600 rounded-2xl p-6 text-white shadow-lg">
-        <h3 className="text-xl font-bold mb-2">Property Management Sync</h3>
-        <p className="text-blue-100 text-sm opacity-90">
-          รายการการจองจากระบบหน้าบ้าน (PMS) ที่ยังไม่ได้บันทึกรับเงินในระบบบัญชี
-        </p>
-      </div>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+        <div className="flex justify-between items-center mb-10">
+          <div>
+            <h2 className="text-2xl font-black text-slate-800">Property Management Sync</h2>
+            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Real-time Guest & Booking Status</p>
+          </div>
+          <div className="bg-indigo-50 text-indigo-600 px-5 py-2.5 rounded-2xl text-[11px] font-black flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+            </span>
+            System Live
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        {MOCK_BOOKINGS.map(booking => {
-          const paid = isPaid(booking.id);
-          return (
-            <div key={booking.id} className="bg-white p-5 rounded-2xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${paid ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800">Room {booking.roomNumber} - {booking.guestName}</h4>
-                  <p className="text-xs text-slate-500">
-                    {booking.id} • {booking.checkIn} ถึง {booking.checkOut}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-                <div className="text-right">
-                  <p className="text-sm font-bold text-slate-800">฿{booking.totalAmount.toLocaleString()}</p>
-                  <p className={`text-[10px] font-bold uppercase tracking-wider ${paid ? 'text-emerald-500' : 'text-amber-500'}`}>
-                    {paid ? 'ชำระเงินแล้ว' : 'ยังไม่ชำระ'}
-                  </p>
-                </div>
-
-                {!paid && (
-                  <button 
-                    onClick={() => handleQuickAdd(booking)}
-                    className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-semibold hover:bg-slate-800 transition-all shadow-sm"
-                  >
-                    ลงบันทึกรับเงิน
-                  </button>
-                )}
-                
-                {paid && (
-                  <div className="bg-emerald-50 text-emerald-600 p-2 rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
+        <div className="grid grid-cols-1 gap-4">
+          {bookings.map(booking => {
+            const paid = isPaid(booking.id);
+            return (
+              <div key={booking.id} className={`p-6 rounded-[2rem] border transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-6 ${
+                booking.status === 'checked_in' ? 'bg-emerald-50/30 border-emerald-100 shadow-lg shadow-emerald-50/50' : 
+                booking.status === 'locked' ? 'bg-amber-50/50 border-amber-200 shadow-sm' :
+                'bg-white border-slate-100 hover:border-indigo-100'
+              }`}>
+                <div className="flex items-center gap-5">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-sm ${
+                    booking.status === 'checked_in' ? 'bg-white text-emerald-600 border border-emerald-100' : 
+                    booking.status === 'locked' ? 'bg-white text-amber-500 border border-amber-100' :
+                    'bg-slate-50 text-slate-400'
+                  }`}>
+                    {booking.status === 'checked_in' ? '🔑' : booking.status === 'locked' ? '🔒' : '🏨'}
                   </div>
-                )}
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <h4 className="font-black text-slate-800 text-base">Room {booking.roomNumber} - {booking.guestName}</h4>
+                      {getStatusBadge(booking)}
+                    </div>
+                    <div className="flex items-center gap-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                       <span>Ref: {booking.id}</span>
+                       <span className="text-slate-200">|</span>
+                       <span className="flex items-center gap-1.5"><span className="text-indigo-400">IN:</span> {new Date(booking.checkIn).toLocaleDateString('th-TH')}</span>
+                       <span className="flex items-center gap-1.5"><span className="text-rose-400">OUT:</span> {new Date(booking.checkOut).toLocaleDateString('th-TH')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-8">
+                  <div className="text-right">
+                    <p className="text-lg font-black text-slate-800 leading-tight">฿{booking.totalAmount.toLocaleString()}</p>
+                    <p className={`text-[9px] font-black uppercase tracking-[0.1em] mt-1 ${paid ? 'text-emerald-500' : 'text-amber-500'}`}>
+                      {paid ? '● ชำระเงินเรียบร้อย' : booking.status === 'locked' ? '○ รอชำระมัดจำ' : '○ ค้างชำระ'}
+                    </p>
+                  </div>
+
+                  {!paid && (
+                    <button 
+                      onClick={() => handleQuickAdd(booking)}
+                      className="bg-slate-900 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-100 active:scale-95"
+                    >
+                      ลงบันทึกรับเงิน
+                    </button>
+                  )}
+                  
+                  {paid && (
+                    <div className="bg-emerald-500 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-100">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-      
-      <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-        <p className="text-xs text-slate-500 text-center">
-          ระบบเชื่อมต่อกับ PMS ผ่าน API อัตโนมัติ เพื่อดึงรายการการจองจาก Agoda, Booking.com และ Walk-in
-        </p>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

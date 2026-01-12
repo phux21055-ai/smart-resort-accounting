@@ -2,9 +2,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { OCRResult, TransactionType, Category, GuestData } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const processReceiptOCR = async (base64Image: string, intent: 'INCOME' | 'EXPENSE' | 'GENERAL' = 'GENERAL'): Promise<OCRResult> => {
+  // Initializing GoogleGenAI inside the function to ensure the current environment API key is used.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   const intentInstruction = intent === 'EXPENSE' 
     ? "The user has identified this specifically as an EXPENSE receipt. Favor EXPENSE classification unless it is clearly an income document."
     : intent === 'INCOME'
@@ -72,6 +73,9 @@ export const processReceiptOCR = async (base64Image: string, intent: 'INCOME' | 
 };
 
 export const processIDCardOCR = async (base64Image: string): Promise<GuestData> => {
+  // Initializing GoogleGenAI inside the function to ensure the current environment API key is used.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   const systemInstruction = `
     You are an expert OCR system for Thai National ID Cards.
     Extract the following information from the image and return it as JSON.

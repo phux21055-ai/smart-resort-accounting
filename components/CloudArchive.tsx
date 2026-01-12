@@ -1,4 +1,5 @@
 
+// components/CloudArchive.tsx provides a digital gallery for all captured receipt images.
 import React, { useState } from 'react';
 import { Transaction, TransactionType } from '../types';
 
@@ -83,7 +84,8 @@ const CloudArchive: React.FC<CloudArchiveProps> = ({ transactions, onViewImage }
         </div>
       ) : (
         <div className="space-y-12">
-          {Object.entries(grouped).map(([month, txs]) => (
+          {/* Explicitly typing txs as Transaction[] to fix property access errors on 'unknown' type */}
+          {Object.entries(grouped).map(([month, txs]: [string, Transaction[]]) => (
             <div key={month} className="space-y-6">
               <div className="flex items-center gap-4">
                 <h4 className="text-sm font-black text-slate-800 pl-4 border-l-4 border-indigo-500 uppercase tracking-tight">{month}</h4>

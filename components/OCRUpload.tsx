@@ -1,4 +1,5 @@
 
+// components/OCRUpload.tsx handles the scanning of receipts and invoices using Gemini AI.
 import React, { useState, useRef } from 'react';
 import { processReceiptOCR } from '../services/geminiService';
 import { Transaction, TransactionType, Category } from '../types';
@@ -49,7 +50,8 @@ const OCRUpload: React.FC<OCRUploadProps> = ({
         });
 
         const base64String = base64Data.split(',')[1];
-        const result = await processReceiptOCR(base64String, intent);
+        // Explicitly casting intent to avoid TS argument type error
+        const result = await processReceiptOCR(base64String, intent as 'INCOME' | 'EXPENSE' | 'GENERAL');
         
         setStatus('uploading');
         await new Promise(r => setTimeout(r, 600));
