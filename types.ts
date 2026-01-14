@@ -41,6 +41,8 @@ export interface GuestData {
   issueDate: string;
   expiryDate: string;
   religion?: string;
+  nationality?: string;
+  occupation?: string;
   customerType?: CustomerType;
   phone?: string;
 }
@@ -59,7 +61,6 @@ export interface Transaction {
   customerType?: CustomerType;
 }
 
-// Fixed: Added missing fields to Booking interface to support PMS, OTA Import, and Check-in features
 export interface Booking {
   id: string;
   guestName: string;

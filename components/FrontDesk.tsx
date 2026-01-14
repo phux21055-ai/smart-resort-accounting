@@ -15,7 +15,8 @@ interface FrontDeskProps {
     description: string, 
     customerType: CustomerType,
     checkIn: string,
-    checkOut: string
+    checkOut: string,
+    imageUrl?: string
   }) => void;
   onQuickBooking: (booking: Omit<Booking, 'id' | 'status'>) => void;
   resortInfo: any;
@@ -26,6 +27,7 @@ const FrontDesk: React.FC<FrontDeskProps> = ({ onCheckIn, onQuickBooking, resort
   const [guest, setGuest] = useState<GuestData | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'ID' | 'SLIP'>('ID');
   const [showDoc, setShowDoc] = useState<'NONE' | 'RR3' | 'RECEIPT' | 'TAX_INVOICE'>('NONE');
   
   const [roomNumber, setRoomNumber] = useState('');
@@ -37,6 +39,9 @@ const FrontDesk: React.FC<FrontDeskProps> = ({ onCheckIn, onQuickBooking, resort
     return tomorrow.toISOString().split('T')[0];
   });
 
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
+  const [paymentSlip, setPaymentSlip] = useState<string | null>(null);
+
   const [totalAmount, setTotalAmount] = useState(0);
   const [description, setDescription] = useState('');
 
@@ -47,39 +52,59 @@ const FrontDesk: React.FC<FrontDeskProps> = ({ onCheckIn, onQuickBooking, resort
       const nights = calculateNights(checkInDate, checkOutDate);
       
       setTotalAmount(amount);
-      setDescription(`ค่าที่พัก ${roomType?.name || 'ห้อง ' + roomNumber} (${nights} คืน)${extraGuests > 0 ? ' + เสริม ' + extraGuests + ' ท่าน' : ''}`);
+      setDescription(`ค่าที่พัก ${roomType?.name || 'ห้อง ' + roomNumber} (${nights} คืน)${extraGuests > 0 ? ' + เสริม ' + extraGuests + ' ท่าน' : ''} [ชำระด้วย${paymentMethod === 'CASH' ? 'เงินสด' : 'เงินโอน'}]`);
     }
-  }, [roomNumber, checkInDate, checkOutDate, extraGuests]);
+  }, [roomNumber, checkInDate, checkOutDate, extraGuests, paymentMethod]);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const idFileInputRef = useRef<HTMLInputElement>(null);
+  const slipFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleOCRResult = async (base64Data: string) => {
+  const handleIDOCRResult = async (base64Data: string) => {
     setIsScanning(true);
     try {
       const result = await processIDCardOCR(base64Data);
       setGuest(result);
-      toast.success("สแกนบัตรประชาชนสำเร็จ");
+      toast.success("สแกนบัตรประชาชนสำเร็จ: " + result.firstNameTH);
     } catch (err: any) {
       toast.error(err.message || "สแกนไม่สำเร็จ กรุณาลองใหม่");
+      console.error(err);
     } finally {
       setIsScanning(false);
+      setIsCameraOpen(false);
     }
+  };
+
+  const handleSlipCapture = (base64Data: string) => {
+    setPaymentSlip(`data:image/jpeg;base64,${base64Data}`);
+    toast.success("บันทึกรูปสลิปเรียบร้อย");
+    setIsCameraOpen(false);
   };
 
   const handleCompleteCheckIn = () => {
     if (!guest || !roomNumber || totalAmount <= 0) {
-      toast.error("กรุณากรอกข้อมูลให้ครบถ้วน");
+      toast.error("กรุณากรอกข้อมูลให้ครบถ้วนและสแกนบัตรแขก");
       return;
     }
+
+    if (paymentMethod === 'TRANSFER' && !paymentSlip) {
+      toast.error("กรณีเงินโอน กรุณาแนบรูปสลิปหลักฐาน");
+      return;
+    }
+
     onCheckIn({
       guest, room: roomNumber, amount: totalAmount,
       description,
       customerType: CustomerType.CHECK_IN, 
       checkIn: checkInDate, 
-      checkOut: checkOutDate
+      checkOut: checkOutDate,
+      imageUrl: paymentSlip || undefined
     });
+    
+    // Reset form
     setGuest(null);
     setRoomNumber('');
+    setPaymentSlip(null);
+    setPaymentMethod('CASH');
     toast.success("เช็คอินเรียบร้อย");
   };
 
@@ -99,94 +124,178 @@ const FrontDesk: React.FC<FrontDeskProps> = ({ onCheckIn, onQuickBooking, resort
 
         <div className="space-y-8">
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => setIsCameraOpen(true)} className="bg-indigo-600 text-white px-6 py-4 rounded-2xl text-xs font-black shadow-xl hover:bg-indigo-700 transition-all flex items-center gap-3">📸 สแกนบัตรประชาชน</button>
-            <button onClick={() => fileInputRef.current?.click()} className="bg-slate-100 text-slate-600 px-6 py-4 rounded-2xl text-xs font-black hover:bg-slate-200 transition-all">📁 อัปโหลดรูป</button>
-            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={(e) => {
+            <button 
+              onClick={() => { setCameraMode('ID'); setIsCameraOpen(true); }} 
+              disabled={isScanning}
+              className={`${isScanning ? 'bg-slate-400' : 'bg-indigo-600 hover:bg-indigo-700'} text-white px-6 py-4 rounded-2xl text-xs font-black shadow-xl transition-all flex items-center gap-3`}
+            >
+              {isScanning ? '⏳ กำลังสแกน...' : '📸 สแกนบัตรประชาชน'}
+            </button>
+            <button 
+              onClick={() => idFileInputRef.current?.click()} 
+              disabled={isScanning}
+              className="bg-slate-100 text-slate-600 px-6 py-4 rounded-2xl text-xs font-black hover:bg-slate-200 transition-all"
+            >
+              📁 เลือกบัตรจากไฟล์
+            </button>
+            <input type="file" accept="image/*" className="hidden" ref={idFileInputRef} onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) {
                 const reader = new FileReader();
-                reader.onload = (ev) => handleOCRResult((ev.target?.result as string).split(',')[1]);
+                reader.onload = (ev) => handleIDOCRResult((ev.target?.result as string).split(',')[1]);
                 reader.readAsDataURL(file);
               }
             }} />
           </div>
 
-          {isScanning ? (
-            <div className="py-20 text-center bg-indigo-50/50 rounded-[3rem] animate-pulse"><p className="text-indigo-600 font-black">AI กำลังอ่านข้อมูล...</p></div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-              <div className="lg:col-span-3 bg-slate-50 p-8 rounded-[2.5rem] space-y-6">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ข้อมูลผู้เข้าพัก</h4>
-                {guest ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2 space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase">ชื่อ-นามสกุล</label>
-                      <input value={`${guest.title}${guest.firstNameTH} ${guest.lastNameTH}`} className="w-full p-4 bg-white rounded-2xl font-bold border-none shadow-sm" readOnly />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase">เลขบัตรประชาชน</label>
-                      <input value={guest.idNumber} className="w-full p-4 bg-white rounded-2xl font-bold border-none shadow-sm" readOnly />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase">วันเกิด</label>
-                      <input value={guest.dob} className="w-full p-4 bg-white rounded-2xl font-bold border-none shadow-sm" readOnly />
-                    </div>
-                    <div className="col-span-2 space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase">ที่อยู่</label>
-                      <textarea value={guest.address} className="w-full p-4 bg-white rounded-2xl font-bold border-none shadow-sm h-24" readOnly />
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-3 bg-slate-50 p-8 rounded-[2.5rem] space-y-6">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ข้อมูลผู้เข้าพักจากบัตร</h4>
+              {isScanning ? (
+                <div className="py-20 text-center animate-pulse">
+                  <div className="text-4xl mb-4">🤖</div>
+                  <p className="text-indigo-600 font-black">AI กำลังวิเคราะห์บัตรประชาชน...</p>
+                </div>
+              ) : guest ? (
+                <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase">ชื่อ-นามสกุล</label>
+                    <input value={`${guest.title}${guest.firstNameTH} ${guest.lastNameTH}`} className="w-full p-4 bg-white rounded-2xl font-bold border-none shadow-sm text-slate-800" readOnly />
                   </div>
-                ) : (
-                  <div className="py-12 text-center text-slate-300 italic">กรุณาสแกนบัตรประชาชนเพื่อดึงข้อมูล</div>
-                )}
-              </div>
-
-              <div className="lg:col-span-2 bg-indigo-600 rounded-[3rem] p-8 text-white flex flex-col gap-6">
-                <h4 className="font-black text-xl">รายละเอียดการเข้าพัก</h4>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-indigo-200">เลขห้อง</label>
-                      <input placeholder="เช่น 1, 2, 14" value={roomNumber} onChange={e => setRoomNumber(e.target.value)} className="w-full bg-white/10 p-4 rounded-2xl text-xs font-bold border border-white/20" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-indigo-200">เสริม (300/คน)</label>
-                      <input type="number" value={extraGuests} onChange={e => setExtraGuests(parseInt(e.target.value) || 0)} className="w-full bg-white/10 p-4 rounded-2xl text-xs font-bold border border-white/20" />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase">เลขบัตรประชาชน</label>
+                    <input value={guest.idNumber} className="w-full p-4 bg-white rounded-2xl font-bold border-none shadow-sm text-indigo-600" readOnly />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-indigo-200">Check-in</label>
-                      <input type="date" value={checkInDate} onChange={e => setCheckInDate(e.target.value)} className="w-full bg-white/10 p-4 rounded-2xl text-xs font-bold border border-white/20" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-black text-indigo-200">Check-out</label>
-                      <input type="date" value={checkOutDate} onChange={e => setCheckOutDate(e.target.value)} className="w-full bg-white/10 p-4 rounded-2xl text-xs font-bold border border-white/20" />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase">วันเกิด</label>
+                    <input value={guest.dob} className="w-full p-4 bg-white rounded-2xl font-bold border-none shadow-sm" readOnly />
                   </div>
-                  
-                  {totalAmount > 0 && (
-                    <div className="bg-white/10 p-5 rounded-2xl border border-white/20 space-y-1">
-                      <p className="text-[10px] opacity-60 font-black uppercase tracking-widest">ยอดชำระสุทธิ</p>
-                      <p className="text-2xl font-black">฿{totalAmount.toLocaleString()}</p>
-                      <p className="text-[9px] opacity-80">{description}</p>
-                    </div>
-                  )}
-
-                  <button onClick={handleCompleteCheckIn} className="w-full bg-white text-indigo-600 py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-all">ยืนยันเช็คอิน</button>
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                    <button onClick={() => setShowDoc('RR3')} className="bg-white/10 text-white p-2 rounded-xl text-[8px] font-black uppercase">ร.ร. 3</button>
-                    <button onClick={() => setShowDoc('RECEIPT')} className="bg-white/10 text-white p-2 rounded-xl text-[8px] font-black uppercase">มัดจำ</button>
-                    <button onClick={() => setShowDoc('TAX_INVOICE')} className="bg-white/10 text-white p-2 rounded-xl text-[8px] font-black uppercase">ใบเสร็จ</button>
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase">ที่อยู่ตามบัตร</label>
+                    <textarea value={guest.address} className="w-full p-4 bg-white rounded-2xl font-bold border-none shadow-sm h-24 text-sm" readOnly />
                   </div>
                 </div>
+              ) : (
+                <div className="py-20 text-center text-slate-300 border-2 border-dashed border-slate-200 rounded-[2rem]">
+                  <div className="text-5xl mb-4">💳</div>
+                  <p className="font-bold">ยังไม่มีข้อมูล</p>
+                  <p className="text-xs">กรุณาสแกนบัตรหรือเลือกไฟล์เพื่อเริ่ม</p>
+                </div>
+              )}
+            </div>
+
+            <div className="lg:col-span-2 bg-indigo-600 rounded-[3rem] p-8 text-white flex flex-col gap-6 shadow-2xl shadow-indigo-200">
+              <h4 className="font-black text-xl flex items-center gap-2">
+                <span>🏨</span> ข้อมูลการเข้าพัก
+              </h4>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-indigo-200 uppercase">เลขห้อง</label>
+                    <input placeholder="เลขห้อง" value={roomNumber} onChange={e => setRoomNumber(e.target.value)} className="w-full bg-white/10 p-4 rounded-2xl text-xs font-bold border border-white/20 focus:bg-white/20 transition-all outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-indigo-200 uppercase">ผู้ใหญ่เสริม (300/คน)</label>
+                    <input type="number" min="0" value={extraGuests} onChange={e => setExtraGuests(parseInt(e.target.value) || 0)} className="w-full bg-white/10 p-4 rounded-2xl text-xs font-bold border border-white/20 focus:bg-white/20 outline-none" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-indigo-200 uppercase">Check-in</label>
+                    <input type="date" value={checkInDate} onChange={e => setCheckInDate(e.target.value)} className="w-full bg-white/10 p-4 rounded-2xl text-[10px] font-bold border border-white/20 outline-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-indigo-200 uppercase">Check-out</label>
+                    <input type="date" value={checkOutDate} onChange={e => setCheckOutDate(e.target.value)} className="w-full bg-white/10 p-4 rounded-2xl text-[10px] font-bold border border-white/20 outline-none" />
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  <label className="text-[10px] font-black text-indigo-200 uppercase tracking-widest">วิธีชำระเงิน</label>
+                  <div className="flex bg-white/10 p-1.5 rounded-2xl border border-white/20">
+                    <button 
+                      onClick={() => setPaymentMethod('CASH')} 
+                      className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${paymentMethod === 'CASH' ? 'bg-white text-indigo-600 shadow-lg' : 'text-white/60'}`}
+                    >
+                      💵 เงินสด
+                    </button>
+                    <button 
+                      onClick={() => setPaymentMethod('TRANSFER')} 
+                      className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${paymentMethod === 'TRANSFER' ? 'bg-white text-indigo-600 shadow-lg' : 'text-white/60'}`}
+                    >
+                      📱 เงินโอน
+                    </button>
+                  </div>
+                </div>
+
+                {paymentMethod === 'TRANSFER' && (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => { setCameraMode('SLIP'); setIsCameraOpen(true); }}
+                        className="flex-1 bg-white/20 hover:bg-white/30 text-white p-3 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2"
+                      >
+                        📸 ถ่ายสลิป
+                      </button>
+                      <button 
+                        onClick={() => slipFileInputRef.current?.click()}
+                        className="flex-1 bg-white/20 hover:bg-white/30 text-white p-3 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2"
+                      >
+                        📁 อัปโหลด
+                      </button>
+                      <input type="file" accept="image/*" className="hidden" ref={slipFileInputRef} onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => setPaymentSlip(ev.target?.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }} />
+                    </div>
+                    {paymentSlip && (
+                      <div className="relative group aspect-video bg-white/10 rounded-2xl overflow-hidden border border-white/20">
+                        <img src={paymentSlip} className="w-full h-full object-cover" alt="Slip Preview" />
+                        <button onClick={() => setPaymentSlip(null)} className="absolute top-2 right-2 bg-rose-500 text-white w-6 h-6 rounded-full text-xs flex items-center justify-center shadow-lg">✕</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {totalAmount > 0 && (
+                  <div className="bg-white/10 p-5 rounded-2xl border border-white/20 space-y-1 animate-in slide-in-from-right-4">
+                    <p className="text-[10px] opacity-60 font-black uppercase tracking-widest">ยอดชำระสุทธิ</p>
+                    <p className="text-3xl font-black">฿{totalAmount.toLocaleString()}</p>
+                    <p className="text-[9px] opacity-80 font-bold">{description}</p>
+                  </div>
+                )}
+
+                <button 
+                  onClick={handleCompleteCheckIn} 
+                  disabled={!guest}
+                  className={`w-full py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-all ${guest ? 'bg-white text-indigo-600' : 'bg-white/20 text-white/40 cursor-not-allowed'}`}
+                >
+                  {guest ? 'ยืนยันเช็คอินทันที' : 'กรุณาสแกนบัตรก่อน'}
+                </button>
+
+                {guest && (
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    <button onClick={() => setShowDoc('RR3')} className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl text-[9px] font-black uppercase transition-all">พิมพ์ ร.ร. ๓</button>
+                    <button onClick={() => setShowDoc('RECEIPT')} className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl text-[9px] font-black uppercase transition-all">ใบมัดจำ</button>
+                    <button onClick={() => setShowDoc('TAX_INVOICE')} className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl text-[9px] font-black uppercase transition-all">ใบเสร็จ</button>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {isCameraOpen && <CameraCapture onCapture={handleOCRResult} onClose={() => setIsCameraOpen(false)} />}
+      {isCameraOpen && (
+        <CameraCapture 
+          onCapture={cameraMode === 'ID' ? handleIDOCRResult : handleSlipCapture} 
+          onClose={() => setIsCameraOpen(false)} 
+        />
+      )}
       
       {showDoc !== 'NONE' && guest && (
         <div className="fixed inset-0 z-[60] bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-4" onClick={() => setShowDoc('NONE')}>
@@ -196,7 +305,7 @@ const FrontDesk: React.FC<FrontDeskProps> = ({ onCheckIn, onQuickBooking, resort
                  <button onClick={() => setShowDoc('NONE')} className="text-slate-400 font-bold hover:text-slate-600 px-4 transition-colors">✕ ปิด</button>
               </div>
               <div className="flex-1 overflow-auto bg-slate-100/50 p-10 flex justify-center">
-                 <PrintableDocument guest={guest} type={showDoc} amount={totalAmount} roomNumber={roomNumber} description={description} resortInfo={resortInfo} />
+                 <PrintableDocument guest={guest} type={showDoc} amount={totalAmount} roomNumber={roomNumber} description={description} resortInfo={resortInfo} checkInDate={checkInDate} checkOutDate={checkOutDate} />
               </div>
            </div>
         </div>
